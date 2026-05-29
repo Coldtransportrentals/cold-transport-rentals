@@ -12,9 +12,9 @@
       background: #f0f4f8;
       min-height: 100vh;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      padding: 24px;
+      padding: 16px;
     }
     .card {
       background: #fff;
@@ -22,7 +22,11 @@
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       max-width: 560px;
       width: 100%;
-      padding: 40px;
+      padding: 24px 20px;
+    }
+    @media (min-width: 480px) {
+      body { padding: 24px; align-items: center; }
+      .card { padding: 40px; }
     }
     .logo {
       font-size: 20px;
@@ -44,8 +48,11 @@
       border-bottom: 1px solid #e5e7eb;
     }
     h2:first-of-type { margin-top: 0; }
-    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    .row { display: grid; gap: 14px; grid-template-columns: 1fr; }
     .row.full { grid-template-columns: 1fr; }
+    @media (min-width: 480px) {
+      .row { grid-template-columns: 1fr 1fr; }
+    }
     .field { display: flex; flex-direction: column; gap: 5px; }
     label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
     input {
@@ -94,8 +101,12 @@
     .job-banner .job-desc { font-weight: 600; color: #1e40af; }
     .amount-summary {
       display: flex;
-      gap: 12px;
+      flex-direction: column;
+      gap: 10px;
       margin-bottom: 20px;
+    }
+    @media (min-width: 480px) {
+      .amount-summary { flex-direction: row; gap: 12px; }
     }
     .amount-pill {
       flex: 1;
