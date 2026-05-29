@@ -13,7 +13,7 @@
       display: flex;
       align-items: flex-start;
       justify-content: center;
-      padding: 40px 24px;
+      padding: 24px 16px;
     }
     .card {
       background: #fff;
@@ -21,7 +21,11 @@
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       max-width: 600px;
       width: 100%;
-      padding: 40px;
+      padding: 28px 20px;
+    }
+    @media (min-width: 480px) {
+      body { padding: 40px 24px; }
+      .card { padding: 40px; }
     }
     .logo { font-size: 20px; font-weight: 700; color: #1a3c5e; margin-bottom: 4px; }
     .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 32px; }
@@ -36,8 +40,11 @@
       letter-spacing: 0.05em;
     }
     h2:first-of-type { margin-top: 0; }
-    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    .row { display: grid; gap: 14px; grid-template-columns: 1fr; }
     .row.full { grid-template-columns: 1fr; }
+    @media (min-width: 480px) {
+      .row { grid-template-columns: 1fr 1fr; }
+    }
     .field { display: flex; flex-direction: column; gap: 5px; }
     label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
     input, textarea, select {
@@ -164,15 +171,13 @@
   </p>
 
   <h2 style="margin-top:28px">Payment Type</h2>
-  <div style="display:flex; gap:12px;">
-    <label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:14px; cursor:pointer; font-weight:500; color:#374151;">
-      <input type="radio" name="payment_type" value="charge" checked style="width:16px;height:16px;" />
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <label style="display:flex; align-items:flex-start; gap:10px; text-transform:none; letter-spacing:0; font-size:14px; cursor:pointer; font-weight:500; color:#374151; line-height:1.4;">
+      <input type="radio" name="payment_type" value="charge" checked style="width:16px;height:16px;margin-top:2px;flex-shrink:0;" />
       Charge rental now + hold security deposit
     </label>
-  </div>
-  <div style="display:flex; gap:12px; margin-top:10px;">
-    <label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:14px; cursor:pointer; font-weight:500; color:#374151;">
-      <input type="radio" name="payment_type" value="hold_only" style="width:16px;height:16px;" />
+    <label style="display:flex; align-items:flex-start; gap:10px; text-transform:none; letter-spacing:0; font-size:14px; cursor:pointer; font-weight:500; color:#374151; line-height:1.4;">
+      <input type="radio" name="payment_type" value="hold_only" style="width:16px;height:16px;margin-top:2px;flex-shrink:0;" />
       Hold only (authorise both amounts, capture later)
     </label>
   </div>
