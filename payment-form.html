@@ -226,13 +226,6 @@
       </div>
     </div>
 
-    <div id="hold-only-wrap" style="margin-top:20px; padding:14px 16px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; display:flex; align-items:flex-start; gap:12px;">
-      <input type="checkbox" id="hold_only" style="margin-top:3px; width:16px; height:16px; cursor:pointer; flex-shrink:0;" />
-      <div>
-        <label for="hold_only" style="font-size:14px; font-weight:600; color:#1e40af; cursor:pointer; text-transform:none; letter-spacing:0;">Place hold only (authorise, don't charge)</label>
-        <p style="font-size:12px; color:#3b82f6; margin-top:3px; margin-bottom:0;">Reserves the amount on the card without capturing it. You manually capture the payment from your Stripe dashboard when the vehicle is returned.</p>
-      </div>
-    </div>
 
     <button type="submit" id="submit-btn">Pay Now</button>
   </form>
@@ -313,10 +306,6 @@
     document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
   });
 
-  // Hold toggle — update button label
-  document.getElementById('hold_only').addEventListener('change', function() {
-    document.getElementById('submit-btn').textContent = this.checked ? 'Authorise & Hold' : 'Pay Now';
-  });
 
   // ABN auto-format: XX XXX XXX XXX
   document.getElementById('abn').addEventListener('input', function() {
