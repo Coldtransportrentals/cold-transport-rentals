@@ -1,9 +1,10 @@
 {
-  "name": "cold-transport-rentals",
+  "name": "cold-transport-rentals-backend",
   "version": "1.0.0",
-  "main": "backend/server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node backend/server.js"
+    "start": "node server.js",
+    "dev": "npx nodemon server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
