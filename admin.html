@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cold Transport Rentals — Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    .logo { font-size: 20px; font-weight: 700; color: #1a3c5e; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 32px; }
+    h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin: 24px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h2:first-of-type { margin-top: 0; }
+    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    .row.full { grid-template-columns: 1fr; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+    input, textarea, select {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #111827;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    .amount-wrap { position: relative; }
+    .amount-wrap span {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      font-size: 14px; color: #6b7280;
+    }
+    .amount-wrap input { padding-left: 24px; }
+    .generate-btn {
+      width: 100%;
+      margin-top: 28px;
+      padding: 14px;
+      background: #1a3c5e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .generate-btn:hover { background: #16324f; }
+
+    /* Result box */
+    #result { display: none; margin-top: 28px; }
+    .result-label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+    .link-box {
+      background: #f0f7ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      color: #1e40af;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+    .copy-btn {
+      margin-top: 10px;
+      padding: 9px 20px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .copy-btn:hover { background: #1d4ed8; }
+    .copy-btn.copied { background: #16a34a; }
+    .summary {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.8;
+    }
+    .summary strong { color: #111827; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">❄ Cold Transport Rentals</div>
+  <div class="subtitle">Admin — Generate customer payment links</div>
+
+  <h2>Customer Details</h2>
+  <div class="row full">
+    <div class="field">
+      <label>Company / Customer Name</label>
+      <input type="text" id="customer_name" placeholder="Acme Pty Ltd" />
+    </div>
+  </div>
+  <div class="row full" style="margin-top:14px">
+    <div class="field">
+      <label>Customer Email</label>
+      <input type="email" id="customer_email" placeholder="customer@company.com.au" />
+    </div>
+  </div>
+
+  <h2 style="margin-top:28px">Job Details</h2>
+  <div class="row full">
+    <div class="field">
+      <label>Job / Rental Description (shown to customer)</label>
+      <input type="text" id="job_description" placeholder="e.g. 3-day refrigerated truck hire — Unit 7" />
+    </div>
+  </div>
+
+  <h2 style="margin-top:28px">Amounts</h2>
+  <div class="row">
+    <div class="field">
+      <label>Rental Amount (AUD)</label>
+      <div class="amount-wrap">
+        <span>$</span>
+        <input type="number" id="rental_amount" placeholder="0.00" min="0" step="0.01" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Security Hold Amount (AUD)</label>
+      <div class="amount-wrap">
+        <span>$</span>
+        <input type="number" id="hold_amount" placeholder="0.00" min="0" step="0.01" />
+      </div>
+    </div>
+  </div>
+  <p style="font-size:12px; color:#6b7280; margin-top:8px;">
+    The security hold is placed on the customer's card but not charged. It's released when the vehicle is returned in good condition.
+  </p>
+
+  <h2 style="margin-top:28px">Payment Type</h2>
+  <div style="display:flex; gap:12px;">
+    <label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:14px; cursor:pointer; font-weight:500; color:#374151;">
+      <input type="radio" name="payment_type" value="charge" checked style="width:16px;height:16px;" />
+      Charge rental now + hold security deposit
+    </label>
+  </div>
+  <div style="display:flex; gap:12px; margin-top:10px;">
+    <label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:14px; cursor:pointer; font-weight:500; color:#374151;">
+      <input type="radio" name="payment_type" value="hold_only" style="width:16px;height:16px;" />
+      Hold only (authorise both amounts, capture later)
+    </label>
+  </div>
+
+  <button class="generate-btn" onclick="generateLink()">Generate Payment Link</button>
+
+  <div id="result">
+    <div class="result-label">Payment Link — send this to your customer</div>
+    <div class="link-box" id="link-display"></div>
+    <button class="copy-btn" id="copy-btn" onclick="copyLink()">Copy Link</button>
+    <div class="summary" id="summary"></div>
+  </div>
+</div>
+
+<script>
+  let generatedLink = '';
+
+  function generateLink() {
+    const name        = document.getElementById('customer_name').value.trim();
+    const email       = document.getElementById('customer_email').value.trim();
+    const desc        = document.getElementById('job_description').value.trim();
+    const rental      = parseFloat(document.getElementById('rental_amount').value) || 0;
+    const hold        = parseFloat(document.getElementById('hold_amount').value) || 0;
+    const payType     = document.querySelector('input[name="payment_type"]:checked').value;
+
+    if (!rental && !hold) {
+      alert('Please enter at least a rental amount or security hold amount.');
+      return;
+    }
+
+    const base = window.location.origin + '/payment-form.html';
+    const params = new URLSearchParams();
+    if (name)   params.set('name', name);
+    if (email)  params.set('email', email);
+    if (desc)   params.set('desc', desc);
+    if (rental) params.set('rental', rental.toFixed(2));
+    if (hold)   params.set('hold', hold.toFixed(2));
+    if (payType === 'hold_only') params.set('hold_only', '1');
+
+    generatedLink = `${base}?${params.toString()}`;
+
+    document.getElementById('link-display').textContent = generatedLink;
+    document.getElementById('copy-btn').textContent = 'Copy Link';
+    document.getElementById('copy-btn').classList.remove('copied');
+
+    // Summary
+    let summaryLines = [];
+    if (name)   summaryLines.push(`<strong>Customer:</strong> ${name}`);
+    if (email)  summaryLines.push(`<strong>Email:</strong> ${email}`);
+    if (desc)   summaryLines.push(`<strong>Job:</strong> ${desc}`);
+    if (rental) summaryLines.push(`<strong>Rental charge:</strong> $${rental.toFixed(2)} AUD`);
+    if (hold)   summaryLines.push(`<strong>Security hold:</strong> $${hold.toFixed(2)} AUD`);
+    summaryLines.push(`<strong>Type:</strong> ${payType === 'hold_only' ? 'Hold only — capture later' : 'Charge rental + hold security deposit'}`);
+    document.getElementById('summary').innerHTML = summaryLines.join('<br>');
+
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(generatedLink).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy Link';
+        btn.classList.remove('copied');
+      }, 2500);
+    });
+  }
+</script>
+</body>
+</html>

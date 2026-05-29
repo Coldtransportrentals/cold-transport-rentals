@@ -81,6 +81,32 @@
       color: #9ca3af;
       margin-top: 8px;
     }
+    .job-banner {
+      background: #f0f7ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+      font-size: 14px;
+      color: #1e40af;
+    }
+    .job-banner .job-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 4px; }
+    .job-banner .job-desc { font-weight: 600; color: #1e40af; }
+    .amount-summary {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .amount-pill {
+      flex: 1;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .amount-pill .pill-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 4px; }
+    .amount-pill .pill-value { font-size: 20px; font-weight: 700; color: #111827; }
+    .amount-pill .pill-note { font-size: 11px; color: #9ca3af; margin-top: 2px; }
     button[type="submit"] {
       width: 100%;
       margin-top: 28px;
@@ -111,6 +137,24 @@
 <div class="card">
   <div class="logo">❄ Cold Transport Rentals</div>
   <div class="subtitle">Secure checkout — all fields required</div>
+
+  <div id="job-banner" style="display:none" class="job-banner">
+    <div class="job-label">Job / Rental</div>
+    <div class="job-desc" id="job-desc-text"></div>
+  </div>
+
+  <div id="amount-summary" style="display:none" class="amount-summary">
+    <div class="amount-pill" id="rental-pill" style="display:none">
+      <div class="pill-label">Rental Charge</div>
+      <div class="pill-value" id="rental-pill-value"></div>
+      <div class="pill-note">Charged today</div>
+    </div>
+    <div class="amount-pill" id="hold-pill" style="display:none">
+      <div class="pill-label">Security Hold</div>
+      <div class="pill-value" id="hold-pill-value"></div>
+      <div class="pill-note">Authorised, not charged — released on return</div>
+    </div>
+  </div>
 
   <form id="payment-form">
     <h2>Business Details</h2>
@@ -182,7 +226,7 @@
       </div>
     </div>
 
-    <div style="margin-top:20px; padding:14px 16px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; display:flex; align-items:flex-start; gap:12px;">
+    <div id="hold-only-wrap" style="margin-top:20px; padding:14px 16px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; display:flex; align-items:flex-start; gap:12px;">
       <input type="checkbox" id="hold_only" style="margin-top:3px; width:16px; height:16px; cursor:pointer; flex-shrink:0;" />
       <div>
         <label for="hold_only" style="font-size:14px; font-weight:600; color:#1e40af; cursor:pointer; text-transform:none; letter-spacing:0;">Place hold only (authorise, don't charge)</label>
@@ -201,6 +245,48 @@
 </div>
 
 <script>
+  // ── Read URL params and pre-fill form ──────────────────────────────────────
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+
+    // Pre-fill name / email
+    if (p.get('name'))  document.getElementById('company_name').value = p.get('name');
+    if (p.get('email')) document.getElementById('email').value = p.get('email');
+
+    // Job description banner
+    if (p.get('desc')) {
+      document.getElementById('job-desc-text').textContent = p.get('desc');
+      document.getElementById('job-banner').style.display = 'block';
+    }
+
+    // Amount pills
+    const rental = parseFloat(p.get('rental')) || 0;
+    const hold   = parseFloat(p.get('hold'))   || 0;
+    if (rental || hold) {
+      document.getElementById('amount-summary').style.display = 'flex';
+      if (rental) {
+        document.getElementById('rental-pill').style.display = 'block';
+        document.getElementById('rental-pill-value').textContent = '$' + rental.toFixed(2) + ' AUD';
+      }
+      if (hold) {
+        document.getElementById('hold-pill').style.display = 'block';
+        document.getElementById('hold-pill-value').textContent = '$' + hold.toFixed(2) + ' AUD';
+      }
+    }
+
+    // hold_only from param — set checkbox + hide manual toggle
+    if (p.get('hold_only') === '1') {
+      const cb = document.getElementById('hold_only');
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change')); // updates button label
+      document.getElementById('hold-only-wrap').style.display = 'none';
+    }
+
+    // Store amounts for submit handler
+    window._presetRental = rental;
+    window._presetHold   = hold;
+  })();
+
   // ⚠️ Replace with your real publishable key from:
   // https://dashboard.stripe.com/acct_1TcJq8Gt8Nz8gmMQ/apikeys
   const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TcJqHK1WG1auGYai3ktlctgLDnIvkUgb9GnER7j7QgWGOiT2z8rsQLGCVK8XJjDOVThtfM0RZdNl5k4Lv1RLz4y00N3AKizMm';
@@ -248,6 +334,8 @@
 
     // Collect metadata
     const holdOnly = document.getElementById('hold_only').checked;
+    const rentalAmount = window._presetRental || 0;
+    const holdAmount   = window._presetHold   || 0;
     const metadata = {
       company_name:    document.getElementById('company_name').value,
       abn:             document.getElementById('abn').value,
@@ -260,6 +348,8 @@
       licence_number:  document.getElementById('licence_number').value,
       licence_state:   document.getElementById('licence_state').value,
       hold_only:       holdOnly,
+      rental_amount:   rentalAmount,
+      hold_amount:     holdAmount,
     };
 
     // Create PaymentMethod
