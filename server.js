@@ -16,7 +16,7 @@ app.use(cors({
 app.use(express.json());
 
 const path = require('path');
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(__dirname));
 
 // ─── Helper: find existing customer by email, or create new ───────────────────
 async function findOrCreateCustomer({ company_name, email, address_line1, city, postcode, state, country, abn, licence_number, licence_state }) {
