@@ -278,17 +278,15 @@
       }
     }
 
-    // hold_only from param — set checkbox + hide manual toggle
-    if (p.get('hold_only') === '1') {
-      const cb = document.getElementById('hold_only');
-      cb.checked = true;
-      cb.dispatchEvent(new Event('change')); // updates button label
-      document.getElementById('hold-only-wrap').style.display = 'none';
-    }
+    // Store all preset values for submit handler
+    window._presetRental   = rental;
+    window._presetHold     = hold;
+    window._presetHoldOnly = p.get('hold_only') === '1';
 
-    // Store amounts for submit handler
-    window._presetRental = rental;
-    window._presetHold   = hold;
+    // Update button label if hold-only
+    if (window._presetHoldOnly) {
+      document.getElementById('submit-btn').textContent = 'Authorise & Hold';
+    }
   })();
 
   // ⚠️ Replace with your real publishable key from:
@@ -332,8 +330,8 @@
     btn.disabled = true;
     btn.textContent = 'Processing…';
 
-    // Collect metadata
-    const holdOnly = document.getElementById('hold_only').checked;
+    // Collect metadata — hold_only is set via URL param, not a checkbox
+    const holdOnly = !!(window._presetHoldOnly);
     const rentalAmount = window._presetRental || 0;
     const holdAmount   = window._presetHold   || 0;
     const metadata = {

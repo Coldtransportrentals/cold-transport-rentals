@@ -36,79 +36,50 @@ app.post('/api/create-payment', async (req, res) => {
   const { paymentMethodId, hold_only, rental_amount, hold_amount, ...customerData } = req.body;
   const { company_name, abn, licence_number, licence_state } = customerData;
 
-  // Convert dollar amounts to cents; fall back to env var for legacy calls
+  // Convert dollar amounts to cents
   const rentalCents = rental_amount ? Math.round(parseFloat(rental_amount) * 100)
                                     : parseInt(process.env.RENTAL_AMOUNT_CENTS || '75000');
   const holdCents   = hold_amount   ? Math.round(parseFloat(hold_amount) * 100) : 0;
+  const totalCents  = rentalCents + holdCents;
+
+  if (totalCents <= 0) {
+    return res.status(400).json({ error: 'Amount must be greater than zero.' });
+  }
 
   try {
     const customer = await findOrCreateCustomer(customerData);
-    const meta = { abn, licence_number, licence_state, company_name };
 
-    const results = {};
+    // Single PaymentIntent for the total amount.
+    // hold_only → manual capture (admin captures from Stripe dashboard on return).
+    // charge mode → immediate capture; admin refunds security portion on vehicle return.
+    const intent = await stripe.paymentIntents.create({
+      amount: totalCents,
+      currency: 'aud',
+      customer: customer.id,
+      payment_method: paymentMethodId,
+      confirm: true,
+      capture_method: hold_only ? 'manual' : 'automatic',
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      description: hold_only
+        ? `Authorisation hold — ${company_name} (rental $${rentalCents/100} + security $${holdCents/100})`
+        : `Rental charge — ${company_name} (rental $${rentalCents/100} + security $${holdCents/100})`,
+      metadata: { abn, licence_number, licence_state, company_name, rental_cents: rentalCents, hold_cents: holdCents },
+    });
 
-    if (hold_only) {
-      // Hold-only mode: authorise total (rental + hold) as a single hold
-      const totalCents = rentalCents + holdCents;
-      if (totalCents > 0) {
-        const intent = await stripe.paymentIntents.create({
-          amount: totalCents,
-          currency: 'aud',
-          customer: customer.id,
-          payment_method: paymentMethodId,
-          confirm: true,
-          capture_method: 'manual',
-          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-          description: `Authorisation hold — ${company_name}`,
-          metadata: { ...meta, rental_amount: rentalCents, hold_amount: holdCents },
-        });
-        if (intent.status !== 'requires_capture') {
-          return res.json({ error: `Unexpected status: ${intent.status}` });
-        }
-        results.holdIntentId = intent.id;
-        console.log(`✅ Hold placed: ${intent.id} | ${company_name} | AUD ${totalCents / 100}`);
-      }
-    } else {
-      // Charge rental now, place security hold separately
-      if (rentalCents > 0) {
-        const rentalIntent = await stripe.paymentIntents.create({
-          amount: rentalCents,
-          currency: 'aud',
-          customer: customer.id,
-          payment_method: paymentMethodId,
-          confirm: true,
-          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-          description: `Rental charge — ${company_name}`,
-          metadata: meta,
-        });
-        if (rentalIntent.status !== 'succeeded') {
-          return res.json({ error: `Payment failed: ${rentalIntent.status}` });
-        }
-        results.rentalIntentId = rentalIntent.id;
-        console.log(`✅ Rental charged: ${rentalIntent.id} | ${company_name} | AUD ${rentalCents / 100}`);
-      }
+    const expectedStatus = hold_only ? 'requires_capture' : 'succeeded';
 
-      if (holdCents > 0) {
-        const holdIntent = await stripe.paymentIntents.create({
-          amount: holdCents,
-          currency: 'aud',
-          customer: customer.id,
-          payment_method: paymentMethodId,
-          confirm: true,
-          capture_method: 'manual',
-          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-          description: `Security deposit hold — ${company_name}`,
-          metadata: meta,
-        });
-        if (holdIntent.status !== 'requires_capture') {
-          return res.json({ error: `Hold failed: ${holdIntent.status}` });
-        }
-        results.holdIntentId = holdIntent.id;
-        console.log(`✅ Hold placed: ${holdIntent.id} | ${company_name} | AUD ${holdCents / 100}`);
-      }
+    if (intent.status === expectedStatus) {
+      const label = hold_only ? 'Hold placed' : 'Payment succeeded';
+      console.log(`✅ ${label}: ${intent.id} | ${company_name} | AUD ${totalCents / 100}`);
+      return res.json({ success: true, paymentIntentId: intent.id, status: intent.status });
     }
 
-    res.json({ success: true, ...results });
+    if (intent.status === 'requires_action') {
+      return res.json({ error: 'Your card requires additional authentication. Please contact us to complete payment.' });
+    }
+
+    return res.json({ error: `Payment failed (${intent.status}). Please try a different card or contact your bank.` });
+
   } catch (err) {
     console.error('Stripe error:', err.message);
     res.status(400).json({ error: err.message });
