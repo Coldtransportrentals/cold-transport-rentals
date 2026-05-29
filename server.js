@@ -6,6 +6,8 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 app.use(cors({
   origin: [
+    'https://coldtransportrentals.com',
+    'https://www.coldtransportrentals.com',
     'https://coldtransportrentals.com.au',
     'https://www.coldtransportrentals.com.au',
     'http://localhost:3001',
@@ -14,7 +16,7 @@ app.use(cors({
 app.use(express.json());
 
 const path = require('path');
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, '..')));
 
 // ─── Helper: find existing customer by email, or create new ───────────────────
 async function findOrCreateCustomer({ company_name, email, address_line1, city, postcode, state, country, abn, licence_number, licence_state }) {
@@ -31,38 +33,82 @@ async function findOrCreateCustomer({ company_name, email, address_line1, city, 
 
 // ─── 1. Standard payment OR hold ─────────────────────────────────────────────
 app.post('/api/create-payment', async (req, res) => {
-  const { paymentMethodId, hold_only, ...customerData } = req.body;
+  const { paymentMethodId, hold_only, rental_amount, hold_amount, ...customerData } = req.body;
   const { company_name, abn, licence_number, licence_state } = customerData;
+
+  // Convert dollar amounts to cents; fall back to env var for legacy calls
+  const rentalCents = rental_amount ? Math.round(parseFloat(rental_amount) * 100)
+                                    : parseInt(process.env.RENTAL_AMOUNT_CENTS || '75000');
+  const holdCents   = hold_amount   ? Math.round(parseFloat(hold_amount) * 100) : 0;
 
   try {
     const customer = await findOrCreateCustomer(customerData);
-    const AMOUNT_CENTS = parseInt(process.env.RENTAL_AMOUNT_CENTS || '75000');
+    const meta = { abn, licence_number, licence_state, company_name };
 
-    const intentParams = {
-      amount: AMOUNT_CENTS,
-      currency: 'aud',
-      customer: customer.id,
-      payment_method: paymentMethodId,
-      confirm: true,
-      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      description: `Refrigerated transport rental — ${company_name}`,
-      metadata: { abn, licence_number, licence_state, company_name },
-    };
+    const results = {};
 
     if (hold_only) {
-      intentParams.capture_method = 'manual';
-    }
-
-    const intent = await stripe.paymentIntents.create(intentParams);
-    const okStatus = hold_only ? 'requires_capture' : 'succeeded';
-
-    if (intent.status === okStatus) {
-      const label = hold_only ? 'Hold placed' : 'Payment succeeded';
-      console.log(`✅ ${label}: ${intent.id} | ${company_name} | AUD ${AMOUNT_CENTS / 100}`);
-      res.json({ success: true, paymentIntentId: intent.id, status: intent.status });
+      // Hold-only mode: authorise total (rental + hold) as a single hold
+      const totalCents = rentalCents + holdCents;
+      if (totalCents > 0) {
+        const intent = await stripe.paymentIntents.create({
+          amount: totalCents,
+          currency: 'aud',
+          customer: customer.id,
+          payment_method: paymentMethodId,
+          confirm: true,
+          capture_method: 'manual',
+          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+          description: `Authorisation hold — ${company_name}`,
+          metadata: { ...meta, rental_amount: rentalCents, hold_amount: holdCents },
+        });
+        if (intent.status !== 'requires_capture') {
+          return res.json({ error: `Unexpected status: ${intent.status}` });
+        }
+        results.holdIntentId = intent.id;
+        console.log(`✅ Hold placed: ${intent.id} | ${company_name} | AUD ${totalCents / 100}`);
+      }
     } else {
-      res.json({ error: `Unexpected status: ${intent.status}` });
+      // Charge rental now, place security hold separately
+      if (rentalCents > 0) {
+        const rentalIntent = await stripe.paymentIntents.create({
+          amount: rentalCents,
+          currency: 'aud',
+          customer: customer.id,
+          payment_method: paymentMethodId,
+          confirm: true,
+          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+          description: `Rental charge — ${company_name}`,
+          metadata: meta,
+        });
+        if (rentalIntent.status !== 'succeeded') {
+          return res.json({ error: `Payment failed: ${rentalIntent.status}` });
+        }
+        results.rentalIntentId = rentalIntent.id;
+        console.log(`✅ Rental charged: ${rentalIntent.id} | ${company_name} | AUD ${rentalCents / 100}`);
+      }
+
+      if (holdCents > 0) {
+        const holdIntent = await stripe.paymentIntents.create({
+          amount: holdCents,
+          currency: 'aud',
+          customer: customer.id,
+          payment_method: paymentMethodId,
+          confirm: true,
+          capture_method: 'manual',
+          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+          description: `Security deposit hold — ${company_name}`,
+          metadata: meta,
+        });
+        if (holdIntent.status !== 'requires_capture') {
+          return res.json({ error: `Hold failed: ${holdIntent.status}` });
+        }
+        results.holdIntentId = holdIntent.id;
+        console.log(`✅ Hold placed: ${holdIntent.id} | ${company_name} | AUD ${holdCents / 100}`);
+      }
     }
+
+    res.json({ success: true, ...results });
   } catch (err) {
     console.error('Stripe error:', err.message);
     res.status(400).json({ error: err.message });
@@ -70,6 +116,7 @@ app.post('/api/create-payment', async (req, res) => {
 });
 
 // ─── 2. Charge a saved customer by email (repeat rental) ─────────────────────
+// POST /api/charge-existing  { email, amount_cents (optional) }
 app.post('/api/charge-existing', async (req, res) => {
   const { email, amount_cents, hold_only } = req.body;
 
@@ -105,16 +152,19 @@ app.post('/api/charge-existing', async (req, res) => {
 });
 
 // ─── 3. Send invoice/payment link to customer via email ───────────────────────
+// POST /api/send-invoice  { email, company_name, amount_cents, description }
 app.post('/api/send-invoice', async (req, res) => {
   const { email, company_name, amount_cents, description } = req.body;
 
   try {
+    // Find or create customer
     let customers = await stripe.customers.list({ email, limit: 1 });
     let customer = customers.data[0];
     if (!customer) {
       customer = await stripe.customers.create({ name: company_name, email });
     }
 
+    // Create invoice with a one-off line item
     await stripe.invoiceItems.create({
       customer: customer.id,
       amount: amount_cents || parseInt(process.env.RENTAL_AMOUNT_CENTS || '75000'),
@@ -143,6 +193,10 @@ app.post('/api/send-invoice', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🚀 Cold Transport Rentals payment server running`);
-  console.log(`   Port: ${PORT}`);
-  console.log(`   Endpoints: /api/create-payment | /api/charge-existing | /api/send-invoice\n`);
+  console.log(`   Backend: http://localhost:${PORT}`);
+  console.log(`   Form:    http://localhost:${PORT}/payment-form.html\n`);
+  console.log(`   Endpoints:`);
+  console.log(`   POST /api/create-payment   — new customer (charge or hold)`);
+  console.log(`   POST /api/charge-existing  — repeat charge saved card`);
+  console.log(`   POST /api/send-invoice     — email invoice to any customer\n`);
 });
