@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cold Transport Rentals — Payment</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      max-width: 560px;
+      width: 100%;
+      padding: 40px;
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a3c5e;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 32px;
+    }
+    h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #374151;
+      margin: 24px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    h2:first-of-type { margin-top: 0; }
+    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    .row.full { grid-template-columns: 1fr; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+    input {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #111827;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    input.error { border-color: #ef4444; }
+    .stripe-field {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: #fff;
+      transition: border-color 0.15s;
+    }
+    .stripe-field.focused { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    #card-errors {
+      color: #ef4444;
+      font-size: 13px;
+      min-height: 18px;
+      margin-top: 8px;
+    }
+    .secure-note {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 8px;
+    }
+    button[type="submit"] {
+      width: 100%;
+      margin-top: 28px;
+      padding: 14px;
+      background: #1a3c5e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button[type="submit"]:hover { background: #16324f; }
+    button[type="submit"]:disabled { background: #9ca3af; cursor: not-allowed; }
+    #success {
+      display: none;
+      text-align: center;
+      padding: 40px 0;
+    }
+    #success .check { font-size: 48px; margin-bottom: 12px; }
+    #success h3 { font-size: 20px; color: #1a3c5e; margin-bottom: 8px; }
+    #success p { color: #6b7280; font-size: 14px; }
+    .required { color: #ef4444; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">❄ Cold Transport Rentals</div>
+  <div class="subtitle">Secure checkout — all fields required</div>
+
+  <form id="payment-form">
+    <h2>Business Details</h2>
+    <div class="row">
+      <div class="field">
+        <label>Company Name <span class="required">*</span></label>
+        <input type="text" id="company_name" placeholder="Acme Pty Ltd" required />
+      </div>
+      <div class="field">
+        <label>ABN <span class="required">*</span></label>
+        <input type="text" id="abn" placeholder="12 345 678 901" maxlength="14" required />
+      </div>
+    </div>
+
+    <h2>Contact</h2>
+    <div class="row full">
+      <div class="field">
+        <label>Email <span class="required">*</span></label>
+        <input type="email" id="email" placeholder="you@company.com.au" required />
+      </div>
+    </div>
+    <div class="row full" style="margin-top:14px">
+      <div class="field">
+        <label>Street Address <span class="required">*</span></label>
+        <input type="text" id="address_line1" placeholder="123 Collins St" required />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div class="field">
+        <label>City <span class="required">*</span></label>
+        <input type="text" id="city" placeholder="Melbourne" required />
+      </div>
+      <div class="field">
+        <label>Postcode <span class="required">*</span></label>
+        <input type="text" id="postcode" placeholder="3000" maxlength="4" required />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div class="field">
+        <label>State <span class="required">*</span></label>
+        <input type="text" id="state" placeholder="VIC" maxlength="3" required />
+      </div>
+      <div class="field">
+        <label>Country</label>
+        <input type="text" id="country" value="AU" maxlength="2" />
+      </div>
+    </div>
+
+    <h2>Driver's Licence</h2>
+    <div class="row">
+      <div class="field">
+        <label>Licence Number <span class="required">*</span></label>
+        <input type="text" id="licence_number" placeholder="12345678" required />
+      </div>
+      <div class="field">
+        <label>Issuing State <span class="required">*</span></label>
+        <input type="text" id="licence_state" placeholder="VIC" maxlength="3" required />
+      </div>
+    </div>
+
+    <h2>Card Details</h2>
+    <div class="field">
+      <label>Card <span class="required">*</span></label>
+      <div id="card-element" class="stripe-field"></div>
+      <div id="card-errors"></div>
+      <div class="secure-note">
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0L1 2.5V7c0 3.31 2.14 6.4 5 7 2.86-.6 5-3.69 5-7V2.5L6 0z" fill="#9ca3af"/></svg>
+        Secured by Stripe — card details never touch our servers
+      </div>
+    </div>
+
+    <div style="margin-top:20px; padding:14px 16px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; display:flex; align-items:flex-start; gap:12px;">
+      <input type="checkbox" id="hold_only" style="margin-top:3px; width:16px; height:16px; cursor:pointer; flex-shrink:0;" />
+      <div>
+        <label for="hold_only" style="font-size:14px; font-weight:600; color:#1e40af; cursor:pointer; text-transform:none; letter-spacing:0;">Place hold only (authorise, don't charge)</label>
+        <p style="font-size:12px; color:#3b82f6; margin-top:3px; margin-bottom:0;">Reserves the amount on the card without capturing it. You manually capture the payment from your Stripe dashboard when the vehicle is returned.</p>
+      </div>
+    </div>
+
+    <button type="submit" id="submit-btn">Pay Now</button>
+  </form>
+
+  <div id="success">
+    <div class="check">✅</div>
+    <h3>Payment Successful</h3>
+    <p>Thank you! You'll receive a confirmation email shortly.</p>
+  </div>
+</div>
+
+<script>
+  // ⚠️ Replace with your real publishable key from:
+  // https://dashboard.stripe.com/acct_1TcJq8Gt8Nz8gmMQ/apikeys
+  const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TcJqHK1WG1auGYai3ktlctgLDnIvkUgb9GnER7j7QgWGOiT2z8rsQLGCVK8XJjDOVThtfM0RZdNl5k4Lv1RLz4y00N3AKizMm';
+
+  const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
+  const elements = stripe.elements();
+
+  const cardElement = elements.create('card', {
+    style: {
+      base: {
+        fontSize: '14px',
+        color: '#111827',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        '::placeholder': { color: '#9ca3af' }
+      },
+      invalid: { color: '#ef4444' }
+    }
+  });
+  cardElement.mount('#card-element');
+
+  cardElement.on('focus', () => document.getElementById('card-element').classList.add('focused'));
+  cardElement.on('blur',  () => document.getElementById('card-element').classList.remove('focused'));
+  cardElement.on('change', e => {
+    document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
+  });
+
+  // Hold toggle — update button label
+  document.getElementById('hold_only').addEventListener('change', function() {
+    document.getElementById('submit-btn').textContent = this.checked ? 'Authorise & Hold' : 'Pay Now';
+  });
+
+  // ABN auto-format: XX XXX XXX XXX
+  document.getElementById('abn').addEventListener('input', function() {
+    let v = this.value.replace(/\D/g, '').substring(0, 11);
+    this.value = v.replace(/(\d{2})(\d{3})(\d{3})(\d{3})/, '$1 $2 $3 $4')
+                  .replace(/(\d{2})(\d{3})(\d{3})/, '$1 $2 $3')
+                  .replace(/(\d{2})(\d{3})/, '$1 $2');
+  });
+
+  document.getElementById('payment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Processing…';
+
+    // Collect metadata
+    const holdOnly = document.getElementById('hold_only').checked;
+    const metadata = {
+      company_name:    document.getElementById('company_name').value,
+      abn:             document.getElementById('abn').value,
+      email:           document.getElementById('email').value,
+      address_line1:   document.getElementById('address_line1').value,
+      city:            document.getElementById('city').value,
+      postcode:        document.getElementById('postcode').value,
+      state:           document.getElementById('state').value,
+      country:         document.getElementById('country').value,
+      licence_number:  document.getElementById('licence_number').value,
+      licence_state:   document.getElementById('licence_state').value,
+      hold_only:       holdOnly,
+    };
+
+    // Create PaymentMethod
+    const { paymentMethod, error } = await stripe.createPaymentMethod({
+      type: 'card',
+      card: cardElement,
+      billing_details: {
+        name:  metadata.company_name,
+        email: metadata.email,
+        address: {
+          line1:       metadata.address_line1,
+          city:        metadata.city,
+          postal_code: metadata.postcode,
+          state:       metadata.state,
+          country:     metadata.country,
+        }
+      }
+    });
+
+    if (error) {
+      document.getElementById('card-errors').textContent = error.message;
+      btn.disabled = false;
+      btn.textContent = 'Pay Now';
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // TODO: Send paymentMethod.id + metadata to YOUR backend to:
+    //   1. Create a Stripe Customer
+    //   2. Create a PaymentIntent with the amount
+    //   3. Confirm and capture payment
+    //   4. Return { success: true } or { error: '...' }
+    //
+    try {
+      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+      const res = await fetch(`${API_BASE}/api/create-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethodId: paymentMethod.id, ...metadata })
+      });
+      const data = await res.json();
+      if (data.error) {
+        document.getElementById('card-errors').textContent = data.error;
+        btn.disabled = false;
+        btn.textContent = 'Pay Now';
+      } else {
+        document.getElementById('payment-form').style.display = 'none';
+        const successEl = document.getElementById('success');
+        successEl.querySelector('h3').textContent = holdOnly ? 'Card Hold Placed' : 'Payment Successful';
+        successEl.querySelector('p').textContent = holdOnly
+          ? 'Card authorised and hold placed. Capture the payment from your Stripe dashboard when the vehicle is returned.'
+          : 'Thank you! You\'ll receive a confirmation email shortly.';
+        successEl.style.display = 'block';
+      }
+    } catch (err) {
+      document.getElementById('card-errors').textContent = 'Server error — make sure the backend is running.';
+      btn.disabled = false;
+      btn.textContent = 'Pay Now';
+    }
+  });
+</script>
+</body>
+</html>
